@@ -1,0 +1,45 @@
+# dvc.yaml - DVC 파이프라인
+# ============================================================
+# 실행 (기본 yolo.yaml):
+#   dvc repro
+#
+# 다른 config로 실행:
+#   dvc repro -S config=configs/rtdetr.yaml
+#   dvc repro -S config=configs/yolo_pose.yaml
+#
+# 단계별 실행:
+#   dvc repro prepare
+#   dvc repro train
+# ============================================================
+
+vars:
+  - config: configs/yolo.yaml
+
+stages:
+  prepare:
+    cmd: python src/dataset.py --config ${config}
+    deps:
+      - src/dataset.py
+      - ${config}
+      - data/images
+      - data/labels
+    outs:
+      - data/splits:
+          cache: true
+    params:
+      - ${config}:
+          - data.split_ratio
+          - train.seed
+
+  train:
+    cmd: python src/train.py --config ${config}
+    deps:
+      - src/train.py
+      - src/utils.py
+      - ${config}
+      - data/splits
+    params:
+      - ${config}:
+          - model.architecture
+          - train
+          - augmentation

@@ -1,0 +1,136 @@
+# ============================================================
+# Optuna 튜닝 설정 - Detectron2 계열
+# ============================================================
+# 사용법:
+#   python src/tune.py --config configs/tune/tune_detectron2.yaml
+#   python src/tune.py --config configs/tune/tune_detectron2.yaml --resume
+#
+# 튜닝 완료 후 최적 파라미터로 본 학습:
+#   python src/train.py --config configs/best_params_tune_detectron2.yaml
+# ============================================================
+
+experiment:
+  name: "tune_detectron2"
+  description: "Optuna HPO - Detectron2 Faster R-CNN 하이퍼파라미터 탐색"
+  tags:
+    - optuna
+    - hpo
+    - detectron2
+
+framework: "detectron2"
+
+# --- 모델 (기본값, search_space에서 override) ---
+model:
+  architecture: "COCO-Detection/faster_rcnn_R_50_FPN_3x.yaml"
+  num_classes: 3
+  class_names:
+    - person
+    - helmet
+    - hoist
+
+# --- 데이터 ---
+data:
+  task: "detect"
+  dataset_yaml: "data/dataset.yaml"
+  image_size: 1024
+  split_ratio:
+    train: 0.8
+    val: 0.15
+    test: 0.05
+
+# --- 학습 (기본값, search_space에서 override) ---
+train:
+  epochs: 100
+  batch_size: 4
+  optimizer: "SGD"
+  lr0: 0.0025
+  lrf: 0.01
+  momentum: 0.9
+  weight_decay: 0.0001
+  warmup_epochs: 1
+  patience: 20
+  device: "0"
+  workers: 4
+  seed: 42
+
+# --- 증강 (기본값) ---
+augmentation:
+  hsv_h: 0.015
+  hsv_s: 0.7
+  hsv_v: 0.4
+  degrees: 0
+  translate: 0.1
+  scale: 0.3
+  flipud: 0
+  fliplr: 0.5
+
+# --- Detectron2 고유 설정 ---
+detectron2:
+  config_file: "COCO-Detection/faster_rcnn_R_50_FPN_3x.yaml"
+  pretrained: true
+  estimated_dataset_size: 1000
+  eval_period: 200
+  roi_batch_size: 512
+
+# --- MLflow ---
+mlflow:
+  tracking_uri: "./mlflow_runs"
+  experiment_name: "dongyang-object-detection"
+
+# --- DVC ---
+dvc:
+  remote: "local"
+  remote_path: "./dvc_storage"
+
+# --- 추론 ---
+inference:
+  conf_threshold: 0.5
+  iou_threshold: 0.45
+  max_det: 100
+
+# ============================================================
+# Optuna 튜닝 설정
+# ============================================================
+tune:
+  n_trials: 15
+  direction: "maximize"
+  metric: "bbox/AP50"                    # Detectron2의 COCO AP50
+  epochs_per_trial: 30                   # trial당 에폭
+  patience_per_trial: 10
+  study_db: "optuna_study_d2.db"
+
+  search_space:
+    # 모델 아키텍처
+    architecture:
+      type: categorical
+      choices:
+        - "COCO-Detection/faster_rcnn_R_50_FPN_3x.yaml"
+        - "COCO-Detection/faster_rcnn_R_101_FPN_3x.yaml"
+        - "COCO-Detection/retinanet_R_50_FPN_3x.yaml"
+
+    # 학습 파라미터
+    lr0:
+      type: float
+      low: 0.0005
+      high: 0.01
+      log: true
+    batch_size:
+      type: categorical
+      choices: [2, 4, 8]
+    optimizer:
+      type: categorical
+      choices: ["SGD", "AdamW"]
+    warmup_epochs:
+      type: int
+      low: 1
+      high: 3
+    weight_decay:
+      type: float
+      low: 0.00005
+      high: 0.001
+      log: true
+
+    # Detectron2 고유 파라미터
+    roi_batch_size:
+      type: categorical
+      choices: [128, 256, 512]

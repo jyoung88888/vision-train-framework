@@ -1,0 +1,94 @@
+# ============================================================
+# YOLO Pose 실험 설정
+# ============================================================
+# YOLO Pose: 객체 탐지 + 키포인트(관절) 추정을 동시에 수행
+# - 사람의 자세(관절 좌표)를 실시간으로 추정
+# - 안전 장비 착용 여부, 위험 자세 감지 등에 활용 가능
+# ============================================================
+
+experiment:
+  name: "exp_yolo11n_pose"
+  description: "YOLOv11n Pose 기본 학습 (키포인트 추정)"
+  tags:
+    - pose
+    - yolo11n
+    - keypoint
+
+# --- 모델 ---
+# yolo11n-pose.pt : nano   (가장 가벼움, 실시간용)
+# yolo11s-pose.pt : small  (속도-정확도 균형)
+# yolo11m-pose.pt : medium (범용)
+# yolo11l-pose.pt : large  (고정확도)
+# yolo11x-pose.pt : xlarge (최고 정확도)
+model:
+  architecture: "yolo11n-pose.pt"
+  num_classes: 1                       # pose는 보통 person 1개 클래스
+  class_names:
+    - person
+
+# --- 데이터 ---
+# Pose 데이터셋은 라벨에 키포인트 좌표가 포함되어야 한다
+# 라벨 포맷: class_id cx cy w h x1 y1 v1 x2 y2 v2 ... (normalized)
+#   - x, y: 키포인트 좌표 (0~1 정규화)
+#   - v: visibility (0=미표시, 1=가려짐, 2=보임)
+data:
+  dataset_yaml: "data/dataset_pose.yaml"   # Pose 전용 dataset yaml
+  image_size: 640
+  split_ratio:
+    train: 0.8
+    val: 0.15
+    test: 0.05
+
+# --- 키포인트 설정 ---
+# COCO 17 키포인트 기준:
+#   0:nose  1:left_eye  2:right_eye  3:left_ear  4:right_ear
+#   5:left_shoulder  6:right_shoulder  7:left_elbow  8:right_elbow
+#   9:left_wrist  10:right_wrist  11:left_hip  12:right_hip
+#   13:left_knee  14:right_knee  15:left_ankle  16:right_ankle
+keypoint:
+  num_keypoints: 17                    # COCO 기준 17개 관절
+  kpt_shape: [17, 3]                   # [키포인트 수, 차원(x,y,visibility)]
+
+# --- 학습 ---
+train:
+  epochs: 100
+  batch_size: 16
+  optimizer: "AdamW"
+  lr0: 0.001
+  lrf: 0.01
+  momentum: 0.937
+  weight_decay: 0.0005
+  warmup_epochs: 3
+  patience: 20
+  device: "0"
+  workers: 8
+  seed: 42
+
+# --- 증강 ---
+augmentation:
+  hsv_h: 0.015
+  hsv_s: 0.7
+  hsv_v: 0.4
+  degrees: 0.0
+  translate: 0.1
+  scale: 0.5
+  fliplr: 0.5
+  mosaic: 1.0
+  mixup: 0.0
+
+# --- MLflow ---
+mlflow:
+  tracking_uri: "./mlflow_runs"
+  experiment_name: "dongyang-pose-estimation"
+
+# --- DVC ---
+dvc:
+  remote: "local"
+  remote_path: "./dvc_storage"
+
+# --- 추론 ---
+inference:
+  conf_threshold: 0.5
+  iou_threshold: 0.45
+  max_det: 100
+  half: true

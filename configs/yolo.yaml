@@ -1,0 +1,87 @@
+# ============================================================
+# 실험 설정 (Experiment Configuration)
+# 용도: train.py에서 로드하여 실험 파라미터 일괄 관리
+# 복제: cp default.yaml exp_001_aug.yaml 로 실험별 분기
+# ============================================================
+
+experiment:
+  name: "yolo11m"
+  description: "YOLOv11m 기본 학습"
+  tags:
+    - yolo11m
+
+# --- 모델 ---
+model:
+  architecture: "yolo11m.pt"        # yolo11n / yolo11s / yolo11m / yolo11l / yolo11x
+  num_classes: 3                     # hoist, helmet, person
+  class_names:
+    - person
+    - helmet
+    - hoist
+
+# --- 데이터 ---
+data:
+  task: "detect"
+  dataset_yaml: "data/dataset.yaml"  # Ultralytics 포맷
+  image_size: 1536
+  split_ratio:                        # train / val / test
+    train: 0.8
+    val: 0.15
+    test: 0.05
+
+# --- 학습 ---
+train:
+  epochs: 500
+  batch_size: 8
+  optimizer: "AdamW"
+  lr0: 0.001
+  lrf: 0.01                          # final lr = lr0 * lrf
+  momentum: 0.937
+  weight_decay: 0.0005
+  warmup_epochs: 3
+  patience: 20                        # early stopping
+  device: "0"                         # GPU id or "cpu"
+  workers: 8
+  seed: 42
+
+# --- 증강 (Ultralytics 내장) ---
+augmentation:
+    hsv_h: 0.015
+    hsv_s: 0.7
+    hsv_v: 0.4
+    # 기하학적 변환
+    degrees: 0
+    translate: 0.1
+    scale: 0.3        # [개선] 0.5 → 0.3 (축소 시 소형 객체 소실 방지)
+    shear: 0
+    perspective: 0.0
+
+    # 뒤집기
+    flipud: 0
+    fliplr: 0.5
+
+    # 고급 증강 (소형 객체 보호)
+    mosaic : 0.2   # [개선] 0.3 → 0.2 (4분할 시 소형 객체 더 작아짐 방지)
+    close_mosaic : 30  # [개선] 마지막 30 epoch에서 mosaic 끄기 (fine-tuning)
+    mixup: 0
+    copy_paste: 0.3   # [개선] 0.2 → 0.3 (소형 객체 복사로 학습 기회 증가)
+
+    # 기타
+    erasing: 0.2  # [개선] 0.4 → 0.2 (소형 객체가 지워지는 것 방지)
+    
+# --- MLflow ---
+mlflow:
+  tracking_uri: "./mlflow_runs"
+  experiment_name: "dongyang-object-detection"
+
+# --- DVC ---
+dvc:
+  remote: "local"                     # local / s3 / gcs
+  remote_path: "./dvc_storage"
+
+# --- 추론 (서비스 연동용) ---
+inference:
+  conf_threshold: 0.5
+  iou_threshold: 0.45
+  max_det: 100
+  half: true                          # FP16

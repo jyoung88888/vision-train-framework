@@ -1,0 +1,87 @@
+# ============================================================
+# Detectron2 실험 설정 (Experiment Configuration)
+# 용도: train.py에서 로드하여 Detectron2 학습 실행
+# ============================================================
+
+experiment:
+  name: "faster_rcnn_r50"
+  description: "Faster R-CNN R50-FPN 기본 학습"
+  tags:
+    - detectron2
+    - faster_rcnn
+
+# --- 프레임워크 (ultralytics / detectron2) ---
+framework: "detectron2"
+
+# --- 모델 ---
+model:
+  # Detectron2 model_zoo config 경로
+  architecture: "COCO-Detection/faster_rcnn_R_50_FPN_3x.yaml"
+  num_classes: 3
+  class_names:
+    - person
+    - helmet
+    - hoist
+
+# --- 데이터 ---
+data:
+  task: "detect"
+  dataset_yaml: "data/dataset.yaml"     # Ultralytics 호환 (dataset.py가 공용)
+  image_size: 1024
+  split_ratio:
+    train: 0.8
+    val: 0.15
+    test: 0.05
+
+# --- 학습 ---
+# epoch 기반으로 지정하면 Detectron2Trainer가 내부적으로 iteration으로 변환
+train:
+  epochs: 100
+  batch_size: 4
+  optimizer: "SGD"
+  lr0: 0.0025
+  lrf: 0.01
+  momentum: 0.9
+  weight_decay: 0.0001
+  warmup_epochs: 1
+  patience: 20
+  device: "0"
+  workers: 4
+  seed: 42
+
+# --- 증강 ---
+# Detectron2는 자체 증강 파이프라인을 사용하지만,
+# config 구조 호환을 위해 동일한 섹션을 유지
+augmentation:
+  hsv_h: 0.015
+  hsv_s: 0.7
+  hsv_v: 0.4
+  degrees: 0
+  translate: 0.1
+  scale: 0.3
+  flipud: 0
+  fliplr: 0.5
+
+# --- Detectron2 고유 설정 ---
+detectron2:
+  config_file: "COCO-Detection/faster_rcnn_R_50_FPN_3x.yaml"
+  pretrained: true                       # ImageNet/COCO pretrained weights 사용
+  estimated_dataset_size: 1000           # epoch→iter 변환 추정값 (실제 등록 후 자동 보정)
+  eval_period: 500                       # N iteration마다 validation 평가
+  roi_batch_size: 512                    # ROI head 배치 크기
+
+# --- MLflow ---
+mlflow:
+  tracking_uri: "./mlflow_runs"
+  experiment_name: "dongyang-object-detection"
+
+# --- DVC ---
+dvc:
+  remote: "local"
+  remote_path: "./dvc_storage"
+
+# --- 추론 ---
+inference:
+  conf_threshold: 0.5
+  iou_threshold: 0.45
+  max_det: 100

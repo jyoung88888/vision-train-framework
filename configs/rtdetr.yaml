@@ -1,0 +1,88 @@
+# ============================================================
+# RT-DETR 실험 설정
+# ============================================================
+# RT-DETR: Baidu의 Real-Time Detection Transformer
+# - Transformer 기반 → NMS 불필요 (end-to-end)
+# - YOLO 대비 작은 객체 탐지 성능 우수
+# - VRAM 사용량이 높으므로 batch_size 조절 필요
+# ============================================================
+
+experiment:
+  name: "exp_rtdetr_l"
+  description: "RT-DETR-L 기본 학습 (Transformer 계열 비교)"
+  tags:
+    - rt-detr
+    - transformer
+    - comparison
+
+# --- 모델 ---
+# rtdetr-l.pt  : ResNet-50 백본 (빠름, 가벼움)
+# rtdetr-x.pt  : ResNet-101 백본 (정확, 무거움)
+model:
+  architecture: "rtdetr-l.pt"
+  num_classes: 3
+  class_names:
+    - person
+    - helmet
+    - hoist
+
+# --- 데이터 ---
+data:
+  dataset_yaml: "data/dataset.yaml"
+  image_size: 1280
+  split_ratio:
+    train: 0.8
+    val: 0.15
+    test: 0.05
+
+# --- 학습 ---
+# RT-DETR 특성:
+#   - AdamW + 낮은 lr이 안정적 (Transformer 특성)
+#   - batch_size: VRAM 여유에 따라 4~8 권장 (YOLO보다 메모리 많이 씀)
+#   - warmup을 길게 잡아야 Transformer가 안정적으로 수렴
+train:
+  epochs: 1
+  batch_size: 4                          # VRAM 부족 시 2로 줄이기
+  optimizer: "AdamW"
+  lr0: 0.0001                            # YOLO 대비 10x 낮게 시작
+  lrf: 0.01
+  momentum: 0.937
+  weight_decay: 0.0001
+  warmup_epochs: 5                       # Transformer는 warmup 길게
+  patience: 20                           # early stopping으로 불필요한 학습 방지
+  device: "0"
+  workers: 4                            # pin_memory CUDA 충돌 방지
+  seed: 42
+
+# --- 증강 ---
+# RT-DETR는 mosaic/mixup 을 꺼도 성능 유지되는 편
+# (Transformer의 global attention이 context를 잘 잡음)
+augmentation:
+  hsv_h: 0.015
+  hsv_s: 0.7
+  hsv_v: 0.4
+  degrees: 0.0
+  translate: 0.1
+  scale: 0.5
+  fliplr: 0.5
+  mosaic: 0.0                            # RT-DETR에서는 off 권장
+  mixup: 0.0
+
+# --- MLflow ---
+mlflow:
+  tracking_uri: "./mlflow_runs"
+  experiment_name: "dongyang-object-detection"
+
+# --- DVC ---
+dvc:
+  remote: "local"
+  remote_path: "./dvc_storage"
+
+# --- 추론 ---
+# RT-DETR는 NMS 없이 end-to-end 추론
+# conf_threshold만 유효, iou_threshold는 무시됨
+inference:
+  conf_threshold: 0.5
+  iou_threshold: 0.45                    # RT-DETR에서는 미사용 (NMS 없음)
+  max_det: 300                           # Transformer는 query 수만큼 출력
+  half: true
